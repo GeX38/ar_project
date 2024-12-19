@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Magical Forest</title>
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/n5ro/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
+
+</head>
+
+<body>
+  <a-scene physics="debug: false">
+    <!-- Поле с текстурой травы -->
+    <a-plane position="0 0 0" scale="1 1 1" rotation="-90 0 0" width="250" height="250" src="textures/grass.jpg"
+      repeat="10 10" material="side: double"></a-plane>
+
+    <!-- Камера пользователя -->
+    <a-entity position="0 1.6 10">
+      <a-camera wasd-controls="acceleration: 50" look-controls listener>
+        <!-- Курсор -->
+        <a-cursor geometry="primitive: ring; radiusInner: 0.02; radiusOuter: 0.03" material="color: black; shader: flat"
+          animation__click="property: scale; startEvents: click; from: 1 1 1; to: 1.5 1.5 1.5; dur: 150">
+        </a-cursor>
+        <a-text id="crystal-counter" value="Кристаллы 0/3" position="1 1 -1.5" scale="2 2 2" color="green"
+          side="double"></a-text>
+        <a-text id="win-message" a-text id="win-message" value="" position="-1.75 1.35 -2" scale="1.5 1.5 1.5" color="yellow" visible="true"></a-text>
+        <a-text id="danger" value="DANGER!" position="-0.5 1.35 -2" scale="2 2 2" color="red" visible = "false"
+          side="double"></a-text>
+      </a-camera>
+    </a-entity>
+
+
+    <!-- Деревья -->
+    <a-entity id="trees-container"></a-entity>
+
+    <!-- Полянки -->
+    <a-entity position="-75 0 10">
+      <a-circle position="0 0 0" rotation="-90 0 0" radius="0"></a-circle>
+      <a-entity gltf-model="models\building.glb" scale="0.75 0.75 0.75" position="0 1 0" rotation="0 90 0"
+        static-body></a-entity>
+    </a-entity>
+    <a-entity position="90 0 -45" id="target">
+      <a-circle position="0 0 0" rotation="-90 0 0" radius="0"></a-circle>
+      <a-entity gltf-model="models\dragon.glb" scale="10 10 10" position="0 5.25 0" rotation="0 0 0"
+        static-body></a-entity>
+      <!-- Звук рычания -->
+      <a-sound id="dragon-roar" src="sounds/roar.mp3" position="0 0 0" autoplay="true" loop="true" volume="3"></a-sound>
+    </a-entity>
+    <a-entity position="66 0 -100">
+      <a-circle position="0 0 0" rotation="-90 0 0" radius="0" color="#88cc88"></a-circle>
+      <!-- Сундук (по умолчанию невидим) -->
+      <a-entity id="treasure-chest" gltf-model="models/chest.glb" position="0 0 0" scale="2 2 2" visible="false"
+        static-body></a-entity>
+    </a-entity>
+
+    <!-- Кристаллы -->
+    <a-entity class="crystal" gltf-model="models/crystal.glb" position="90 1 -50" scale="100 100 100"
+      static-body></a-entity>
+    <a-entity class="crystal" gltf-model="models/crystal.glb" position="-75 1 10" scale="100 100 100"
+      static-body></a-entity>
+    <a-entity class="crystal" gltf-model="models/crystal.glb" position="30 1 22" scale="100 100 100"
+      static-body></a-entity>
+
+
+    <a-sound id="ambient-sound" src="sounds/ambient.wav" autoplay="true" loop="true" volume="0.5"></a-sound>
+
+  </a-scene>
+
+  <script>
+    const scene = document.querySelector("a-scene");
+    const treeContainer = document.getElementById("trees-container");
+    const numTrees = 40;
+    const fieldSize = 100;
+
+    // Случайная расстановка деревьев
+    for (let i = 0; i < numTrees; i++) {
+      const x = Math.random() * fieldSize * 2 - fieldSize;
+      const z = Math.random() * fieldSize * 2 - fieldSize;
+
+      // Создаем дерево
+      const tree = document.createElement("a-entity");
+      tree.setAttribute("position", `${x} 0 ${z}`);
+      tree.setAttribute("scale", "0.25 0.25 0.25");
+      tree.setAttribute("gltf-model", "models/tree.glb");
+      tree.setAttribute("static-body", "");
+
+      treeContainer.appendChild(tree);
+    }
+
+    // Расстановка деревьев вокруг полянок
+    const clearings = [
+      { x: -75, z: 10 },
+      { x: 90, z: -45 },
+      { x: 66, z: -100 },
+    ];
+
+    clearings.forEach((clearing) => {
+      const radius = 15;
+      const treesAround = 15;
+      const angleSpan = (3 / 5) * Math.PI * 2; // Угол, соответствующий 3/5 от полного круга
+
+      for (let j = 0; j < treesAround; j++) {
+
+        const angle = (j / treesAround) * angleSpan + 185; // Угол для каждого дерева
+
+        const x = clearing.x + Math.cos(angle) * radius;
+        const z = clearing.z + Math.sin(angle) * radius;
+
+        // Создаем дерево
+        const tree = document.createElement("a-entity");
+        tree.setAttribute("position", `${x} 0 ${z}`);
+        tree.setAttribute("scale", "0.25 0.25 0.25");
+        tree.setAttribute("gltf-model", "models/tree.glb");
+        tree.setAttribute("static-body", "");
+
+        treeContainer.appendChild(tree);
+      }
+    });
+
+    AFRAME.registerComponent('listener', {
+      tick: function () {
+        const cameraPosition = this.el.sceneEl.querySelector('a-camera').getAttribute('position');
+        const targetPosition = document.getElementById('target').getAttribute('position');
+        const distance = this.calculateDistance(cameraPosition, targetPosition);
+
+        const danger = document.getElementById('danger');
+        if (distance <= 15) {
+          danger.setAttribute('visible', 'true');
+        } else {
+          danger.setAttribute('visible', 'false');
+        }
+      },
+
+      calculateDistance: function (pos1, pos2) {
+        const dx = pos1.x - pos2.x;
+        const dy = pos1.y - pos2.y;
+        const dz = pos1.z - pos2.z;
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+      }
+    });
+
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const camera = document.querySelector("a-camera");
+      const roarSound = document.querySelector("#dragon-roar");
+      const crystals = document.querySelectorAll(".crystal");
+      const chest = document.querySelector("#treasure-chest");
+      const crystalCounter = document.querySelector("#crystal-counter");
+      const winMessage = document.querySelector("#win-message");
+      const ambientSound = document.querySelector("#ambient-sound");
+      let collectedCrystals = 0;
+      const totalCrystals = 3;
+      const ambientZone = document.querySelector("#ambient-zone");
+
+
+      crystals.forEach((crystal) => {
+        crystal.addEventListener("click", () => {
+          console.log("Кристалл собран!");
+          crystal.setAttribute("visible", "false");
+          collectedCrystals++;
+          crystalCounter.setAttribute("value", `Кристаллы ${collectedCrystals}/${totalCrystals}`);
+
+
+          if (collectedCrystals === totalCrystals || collectedCrystals > totalCrystals) {
+            console.log("Все кристаллы собраны! Сундук открыт!");
+            chest.setAttribute("visible", "true");
+          }
+        });
+      });
+
+      chest.addEventListener("click", () => {
+        if (collectedCrystals === totalCrystals || collectedCrystals > totalCrystals) {
+          winMessage.setAttribute("value", "Congratulations, YOU WIN!");
+          winMessage.setAttribute("visible", "true");
+          crystalCounter.setAttribute("visible", "false");
+          console.log("YOU WIN!");
+        }
+      });
+    });
+  </script>
+</body>
+
+</html>
